@@ -55,3 +55,4 @@ export const MockSpecSchema = z.object({
 
 export type MockSpecInferSchema = z.infer<typeof MockSpecSchema>;
 export type EndpointSpecInferSchema = z.infer<typeof EndpointSchema>;
+export type VariantSpecInferSchema = z.infer<typeof VariantSchema>;
