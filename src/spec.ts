@@ -13,6 +13,14 @@ export const EndpointSchema = z.object({
      method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']),
      path: z.string().min(1),
 
+     match: z
+          .object({
+               // Exact-match requirements for querystring keys.
+               // Example: { type: "premium" } means request must include ?type=premium
+               query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional()
+          })
+          .optional(),
+
      // Response behavior:
      status: z.number().int().min(200).max(599).default(200),
      response: z.unknown(),

@@ -1,5 +1,6 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type { MockSpecInferSchema, EndpointSpecInferSchema } from './spec.js'
+import { renderTemplate } from './template.js';
 
 
 function normalizeMethod(method: EndpointSpecInferSchema["method"]): Lowercase<EndpointSpecInferSchema["method"]> {
@@ -30,6 +31,29 @@ function resolveBehavior(spec: MockSpecInferSchema, endpoint: EndpointSpecInferS
 }
 
 
+function asRecord(value: unknown): Record<string, unknown> {
+     if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+     return {};
+}
+
+function queryMatches(req: FastifyRequest, endpoint: EndpointSpecInferSchema): boolean {
+     const required = endpoint.match?.query;
+     if (!required) return true;
+
+     const q = asRecord(req.query);
+
+     for (const [key, expected] of Object.entries(required)) {
+          const actual = q[key];
+
+          if (Array.isArray(actual)) return false;
+
+          if (String(actual ?? "") !== String(expected)) return false;
+     }
+
+     return true;
+}
+
+
 export function registerEndpoints(app: FastifyInstance, spec: MockSpecInferSchema): void {
      for (const endpoint of spec.endpoints) {
           const method = normalizeMethod(endpoint.method)
@@ -38,7 +62,14 @@ export function registerEndpoints(app: FastifyInstance, spec: MockSpecInferSchem
           app.route({
                method: endpoint.method,
                url: endpoint.path,
-               handler: async (_req, reply) => {
+               handler: async (req, reply) => {
+                    // 1) Match requirements (query)
+                    if (!queryMatches(req, endpoint)) {
+                         reply.code(404);
+                         return { error: "No matching mock for request (query mismatch)" };
+                    }
+
+                    // 2) Delay + error simulation
                     const behavior = resolveBehavior(spec, endpoint);
 
                     if (behavior.delayMs > 0) {
@@ -50,8 +81,15 @@ export function registerEndpoints(app: FastifyInstance, spec: MockSpecInferSchem
                          return behavior.errorResponse;
                     }
 
+                    // 3) Template rendering using request context
+                    const params = asRecord(req.params);
+                    const query = asRecord(req.query);
+                    const body = req.body;
+
+                    const rendered = renderTemplate(endpoint.response, { params, query, body });
+
                     reply.code(endpoint.status ?? 200);
-                    return endpoint.response;
+                    return rendered;
                }
           });
 

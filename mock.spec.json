@@ -1,34 +1,45 @@
 {
-     "version": 1,
-     "settings": {
-       "delayMs": 200,
-       "errorRate": 0.1,
-       "errorStatus": 503,
-       "errorResponse": { "error": "Service temporarily unavailable" }
-     },
-     "endpoints": [
-       {
-         "method": "GET",
-         "path": "/hello",
-         "status": 200,
-         "response": { "message": "Hello from spec" }
-       },
-       {
-         "method": "GET",
-         "path": "/slow",
-         "status": 200,
-         "delayMs": 1500,
-         "response": { "message": "This endpoint is intentionally slow" }
-       },
-       {
-         "method": "GET",
-         "path": "/flaky",
-         "status": 200,
-         "errorRate": 0.5,
-         "errorStatus": 500,
-         "errorResponse": { "error": "Random failure" },
-         "response": { "message": "Sometimes works, sometimes fails" }
-       }
-     ]
-   }
-   
+  "version": 1,
+  "settings": {
+    "delayMs": 0,
+    "errorRate": 0,
+    "errorStatus": 503,
+    "errorResponse": { "error": "Service temporarily unavailable" }
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/users/:id",
+      "status": 200,
+      "response": {
+        "id": "{{params.id}}",
+        "type": "{{query.type}}",
+        "message": "User lookup ok"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/search",
+      "status": 200,
+      "match": { "query": { "type": "premium" } },
+      "response": {
+        "ok": true,
+        "filter": "{{query.type}}",
+        "results": [
+          { "id": "u1", "tier": "premium" },
+          { "id": "u2", "tier": "premium" }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/echo",
+      "status": 201,
+      "response": {
+        "receivedEmail": "{{body.email}}",
+        "receivedName": "{{body.name}}",
+        "rawBody": "{{body}}"
+      }
+    }
+  ]
+}
