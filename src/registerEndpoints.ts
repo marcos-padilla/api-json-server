@@ -2,11 +2,14 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { MockSpecInferSchema, EndpointSpecInferSchema, TemplateValue } from "./spec.js";
 import { matchRequest, toRecord } from "./requestMatch.js";
 import { createRenderContext, renderTemplateValue } from "./responseRenderer.js";
-import { resolveBehavior, shouldFail, sleep, type BehaviorOverrides } from "./behavior.js";
+import { resolveBehavior, shouldFail, sleep, resolveDelay, type BehaviorOverrides, type DelayConfig } from "./behavior.js";
+import { logEndpointRegistered } from "./logger/customLogger.js";
 
 type ResponseSource = {
      status?: number;
      response: TemplateValue;
+     headers?: Record<string, string>;
+     delay?: DelayConfig;
 } & BehaviorOverrides;
 
 /**
@@ -19,6 +22,8 @@ function selectVariant(req: FastifyRequest, endpoint: EndpointSpecInferSchema): 
                return {
                     status: variant.status,
                     response: variant.response,
+                    headers: variant.headers,
+                    delay: variant.delay,
                     delayMs: variant.delayMs,
                     errorRate: variant.errorRate,
                     errorStatus: variant.errorStatus,
@@ -36,6 +41,8 @@ function selectEndpointSource(endpoint: EndpointSpecInferSchema): ResponseSource
      return {
           status: endpoint.status,
           response: endpoint.response,
+          headers: endpoint.headers,
+          delay: endpoint.delay,
           delayMs: endpoint.delayMs,
           errorRate: endpoint.errorRate,
           errorStatus: endpoint.errorStatus,
@@ -54,9 +61,7 @@ export function registerEndpoints(app: FastifyInstance, spec: MockSpecInferSchem
                handler: buildEndpointHandler(spec, endpoint)
           });
 
-          app.log.info(
-               `Registered ${endpoint.method} ${endpoint.path} -> ${endpoint.status} (delay=${endpoint.delayMs ?? spec.settings.delayMs}ms, errorRate=${endpoint.errorRate ?? spec.settings.errorRate})`
-          );
+          logEndpointRegistered(app.log, endpoint.method, endpoint.path, endpoint.status);
      }
 }
 
@@ -75,8 +80,10 @@ function buildEndpointHandler(spec: MockSpecInferSchema, endpoint: EndpointSpecI
           const source = variant ?? selectEndpointSource(endpoint);
           const behavior = resolveBehavior(spec.settings, endpoint, source);
 
-          if (behavior.delayMs > 0) {
-               await sleep(behavior.delayMs);
+          // Resolve delay (supports both delay and delayMs, with delay taking precedence)
+          const delayValue = source.delay ? resolveDelay(source.delay) : behavior.delayMs;
+          if (delayValue > 0) {
+               await sleep(delayValue);
           }
 
           const params = toRecord(req.params);
@@ -87,6 +94,17 @@ function buildEndpointHandler(spec: MockSpecInferSchema, endpoint: EndpointSpecI
           if (shouldFail(behavior.errorRate)) {
                reply.code(behavior.errorStatus);
                return renderTemplateValue(behavior.errorResponse, renderContext);
+          }
+
+          // Apply custom headers (with template support)
+          const headers = source.headers ?? endpoint.headers;
+          if (headers) {
+               for (const [key, value] of Object.entries(headers)) {
+                    const renderedValue = typeof value === "string" 
+                         ? String(renderTemplateValue(value, renderContext))
+                         : String(value);
+                    reply.header(key, renderedValue);
+               }
           }
 
           const rendered = renderTemplateValue(source.response, renderContext);

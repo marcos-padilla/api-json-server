@@ -66,8 +66,20 @@ const TemplateValueSchema: z.ZodType<TemplateValue> = z.lazy(() =>
 export const MatchSchema = z.object({
      query: z.record(z.string(), PrimitiveSchema).optional(),
      // Exact match for top-level body fields only (keeps v1 simple)
-     body: z.record(z.string(), PrimitiveSchema).optional()
+     body: z.record(z.string(), PrimitiveSchema).optional(),
+     // Header matching (case-insensitive keys)
+     headers: z.record(z.string(), z.string()).optional(),
+     // Cookie matching
+     cookies: z.record(z.string(), z.string()).optional()
 });
+
+const DelaySchema = z.union([
+     z.number().int().min(0),
+     z.object({
+          min: z.number().int().min(0),
+          max: z.number().int().min(0)
+     })
+]);
 
 export const VariantSchema = z.object({
      name: z.string().min(1).optional(),
@@ -75,9 +87,11 @@ export const VariantSchema = z.object({
 
      status: z.number().int().min(100).max(599).optional(),
      response: TemplateValueSchema,
+     headers: z.record(z.string(), z.string()).optional(),
 
      // Simulation overrides per variant (optional)
      delayMs: z.number().int().min(0).optional(),
+     delay: DelaySchema.optional(),
      errorRate: z.number().min(0).max(1).optional(),
      errorStatus: z.number().int().min(100).max(599).optional(),
      errorResponse: TemplateValueSchema.optional()
@@ -93,9 +107,23 @@ export const EndpointSchema = z.object({
      // Response behavior:
      status: z.number().int().min(200).max(599).default(200),
      response: TemplateValueSchema,
+     headers: z.record(z.string(), z.string()).optional(),
+
+     // Per-endpoint CORS override
+     cors: z
+          .object({
+               origin: z.union([z.string(), z.array(z.string()), z.boolean()]).optional(),
+               credentials: z.boolean().optional(),
+               methods: z.array(z.string()).optional(),
+               allowedHeaders: z.array(z.string()).optional(),
+               exposedHeaders: z.array(z.string()).optional(),
+               maxAge: z.number().int().optional()
+          })
+          .optional(),
 
      // Simulation (optional overrides)
      delayMs: z.number().int().min(0).optional(),
+     delay: DelaySchema.optional(),
      errorRate: z.number().min(0).max(1).optional(),
      errorStatus: z.number().int().min(100).max(599).optional(),
      errorResponse: TemplateValueSchema.optional()
@@ -109,7 +137,17 @@ export const MockSpecSchema = z.object({
                errorRate: z.number().min(0).max(1).default(0),
                errorStatus: z.number().int().min(100).max(599).default(500),
                errorResponse: TemplateValueSchema.default({ error: "Mock error" }),
-               fakerSeed: z.number().int().min(0).optional()
+               fakerSeed: z.number().int().min(0).optional(),
+               cors: z
+                    .object({
+                         origin: z.union([z.string(), z.array(z.string()), z.boolean()]).optional(),
+                         credentials: z.boolean().optional(),
+                         methods: z.array(z.string()).optional(),
+                         allowedHeaders: z.array(z.string()).optional(),
+                         exposedHeaders: z.array(z.string()).optional(),
+                         maxAge: z.number().int().optional()
+                    })
+                    .optional()
           })
           .default({ delayMs: 0, errorRate: 0, errorStatus: 500, errorResponse: { error: "Mock error" } }),
      endpoints: z.array(EndpointSchema).min(1)

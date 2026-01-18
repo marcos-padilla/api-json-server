@@ -2,6 +2,8 @@
 
 import { Command } from "commander";
 import { watch } from "node:fs";
+import { createLogger, logServerStart, logServerReload } from "./logger/customLogger.js";
+import type { LoggerOptions } from "./logger/types.js";
 
 const program = new Command();
 
@@ -18,14 +20,16 @@ program
      .option("--watch", "Reload when spec file changes", true)
      .option("--no-watch", "Disable reload when spec file changes")
      .option("--base-url <url>", "Public base URL used in OpenAPI servers[] (e.g. https://example.com)")
-     .action(async (opts: { port: string; spec: string; watch: boolean; baseUrl?: string }) => {
+     .option("--log-format <format>", "Log format: pretty or json", "pretty")
+     .option("--log-level <level>", "Log level: trace, debug, info, warn, error, fatal", "info")
+     .action(async (opts: { port: string; spec: string; watch: boolean; baseUrl?: string; logFormat: string; logLevel: string }) => {
           await startCommand(opts);
      });
 
 /**
  * Run the mock server CLI command.
  */
-async function startCommand(opts: { port: string; spec: string; watch: boolean; baseUrl?: string }): Promise<void> {
+async function startCommand(opts: { port: string; spec: string; watch: boolean; baseUrl?: string; logFormat: string; logLevel: string }): Promise<void> {
      const port = Number(opts.port);
 
      if (!Number.isFinite(port) || port <= 0) {
@@ -34,6 +38,18 @@ async function startCommand(opts: { port: string; spec: string; watch: boolean; 
      }
 
      const specPath = opts.spec;
+
+     // Create logger based on CLI options
+     const logFormat = opts.logFormat === "json" ? "json" : "pretty";
+     const logLevel = ["trace", "debug", "info", "warn", "error", "fatal"].includes(opts.logLevel)
+          ? opts.logLevel as LoggerOptions["level"]
+          : "info";
+
+     const logger = createLogger({
+          enabled: true,
+          format: logFormat,
+          level: logLevel
+     });
 
      const { loadSpecFromFile } = await import("./loadSpec.js");
      const { buildServer } = await import("./server.js");
@@ -49,9 +65,9 @@ async function startCommand(opts: { port: string; spec: string; watch: boolean; 
           const loadedAt = new Date().toISOString();
 
           const spec = await loadSpecFromFile(specPath);
-          console.log(`Loaded spec v${spec.version} with ${spec.endpoints.length} endpoint(s).`);
+          logger.info(`Loaded spec v${spec.version} with ${spec.endpoints.length} endpoint(s).`);
 
-          const nextApp = buildServer(spec, { specPath, loadedAt, baseUrl: opts.baseUrl });
+          const nextApp = buildServer(spec, { specPath, loadedAt, baseUrl: opts.baseUrl, logger: true });
           try {
                await nextApp.listen({ port, host: "0.0.0.0" });
           } catch (err) {
@@ -59,8 +75,7 @@ async function startCommand(opts: { port: string; spec: string; watch: boolean; 
                throw err;
           }
 
-          nextApp.log.info(`Mock server running on http://localhost:${port}`);
-          nextApp.log.info(`Spec: ${specPath} (loadedAt=${loadedAt})`);
+          logServerStart(nextApp.log, port, specPath);
 
           return nextApp;
      }
@@ -73,36 +88,34 @@ async function startCommand(opts: { port: string; spec: string; watch: boolean; 
           isReloading = true;
 
           try {
-               console.log("Reloading spec...");
+               logger.info("Reloading spec...");
 
                // 1) Stop accepting requests on the old server FIRST
                if (app) {
-                    console.log("Closing current server...");
+                    logger.debug("Closing current server...");
                     await app.close();
-                    console.log("Current server closed.");
+                    logger.debug("Current server closed.");
                     app = null;
                }
 
                // 2) Start a new server on the same port with the updated spec
                app = await startWithSpec();
 
-               console.log("Reload complete.");
+               logServerReload(logger, true);
           } catch (err) {
-               console.error("Reload failed.");
-
-               // At this point the old server may already be closed. We want visibility.
-               console.error(String(err));
+               const errorMsg = err instanceof Error ? err.message : String(err);
+               logServerReload(logger, false, errorMsg);
 
                // Optional: try to start again to avoid being down
                try {
                     if (!app) {
-                         console.log("Attempting to start server again after reload failure...");
+                         logger.info("Attempting to start server again after reload failure...");
                          app = await startWithSpec();
-                         console.log("Recovery start succeeded.");
+                         logger.info("Recovery start succeeded.");
                     }
                } catch (err2) {
-                    console.error("Recovery start failed. Server is down until next successful reload.");
-                    console.error(String(err2));
+                    logger.error("Recovery start failed. Server is down until next successful reload.");
+                    logger.error(err2);
                }
           } finally {
                isReloading = false;
@@ -113,7 +126,7 @@ async function startCommand(opts: { port: string; spec: string; watch: boolean; 
      try {
           app = await startWithSpec();
      } catch (err) {
-          console.error(String(err));
+          logger.error(err);
           process.exit(1);
      }
 
@@ -126,12 +139,12 @@ async function startCommand(opts: { port: string; spec: string; watch: boolean; 
      }
 
      if (opts.watch) {
-          console.log(`Watching spec file for changes: ${specPath}`);
+          logger.info(`Watching spec file for changes: ${specPath}`);
 
           // fs.watch emits multiple events; debounce to avoid rapid reload loops
           watch(specPath, onSpecChange);
      } else {
-          console.log("Watch disabled (--no-watch).");
+          logger.info("Watch disabled (--no-watch).");
      }
 }
 

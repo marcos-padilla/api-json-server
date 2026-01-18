@@ -133,4 +133,113 @@ describe("matching rules", () => {
 
           await app.close();
      });
+
+     it("matches request headers (case-insensitive)", async () => {
+          const app = buildTestServer({
+               version: 1,
+               settings: baseSettings,
+               endpoints: [
+                    {
+                         method: "GET",
+                         path: "/api/data",
+                         match: { headers: { Authorization: "Bearer token123" } },
+                         response: { ok: true, data: "secure" }
+                    }
+               ]
+          });
+
+          const ok = await app.inject({
+               method: "GET",
+               url: "/api/data",
+               headers: { authorization: "Bearer token123" }
+          });
+          expect(ok.statusCode).toBe(200);
+          expect(ok.json()).toEqual({ ok: true, data: "secure" });
+
+          const bad = await app.inject({
+               method: "GET",
+               url: "/api/data",
+               headers: { authorization: "Bearer wrong" }
+          });
+          expect(bad.statusCode).toBe(404);
+
+          await app.close();
+     });
+
+     it("matches cookies", async () => {
+          const app = buildTestServer({
+               version: 1,
+               settings: baseSettings,
+               endpoints: [
+                    {
+                         method: "GET",
+                         path: "/profile",
+                         match: { cookies: { sessionId: "abc123" } },
+                         response: { user: "john" }
+                    }
+               ]
+          });
+
+          const ok = await app.inject({
+               method: "GET",
+               url: "/profile",
+               headers: { cookie: "sessionId=abc123" }
+          });
+          expect(ok.statusCode).toBe(200);
+          expect(ok.json()).toEqual({ user: "john" });
+
+          const bad = await app.inject({
+               method: "GET",
+               url: "/profile",
+               headers: { cookie: "sessionId=wrong" }
+          });
+          expect(bad.statusCode).toBe(404);
+
+          await app.close();
+     });
+
+     it("combines query, body, headers, and cookies in match rules", async () => {
+          const app = buildTestServer({
+               version: 1,
+               settings: baseSettings,
+               endpoints: [
+                    {
+                         method: "POST",
+                         path: "/api/action",
+                         match: {
+                              query: { type: "premium" },
+                              body: { action: "delete" },
+                              headers: { "X-API-Key": "secret" },
+                              cookies: { session: "valid" }
+                         },
+                         response: { ok: true }
+                    }
+               ]
+          });
+
+          const ok = await app.inject({
+               method: "POST",
+               url: "/api/action?type=premium",
+               headers: {
+                    "x-api-key": "secret",
+                    cookie: "session=valid"
+               },
+               payload: { action: "delete" }
+          });
+          expect(ok.statusCode).toBe(200);
+
+          // Missing one of the requirements
+          const bad = await app.inject({
+               method: "POST",
+               url: "/api/action?type=premium",
+               headers: {
+                    "x-api-key": "secret",
+                    cookie: "session=wrong"
+               },
+               payload: { action: "delete" }
+          });
+          expect(bad.statusCode).toBe(404);
+
+          await app.close();
+     });
 });

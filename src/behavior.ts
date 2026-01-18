@@ -1,4 +1,7 @@
 import type { TemplateValue } from "./spec.js";
+import { faker } from "@faker-js/faker";
+
+export type DelayConfig = number | { min: number; max: number };
 
 export type BehaviorSettings = {
      delayMs: number;
@@ -7,7 +10,18 @@ export type BehaviorSettings = {
      errorResponse: TemplateValue;
 };
 
-export type BehaviorOverrides = Partial<BehaviorSettings>;
+export type BehaviorOverrides = Partial<BehaviorSettings> & {
+     delay?: DelayConfig;
+};
+
+/**
+ * Resolve a delay value from either a number or a range configuration.
+ */
+export function resolveDelay(delay?: DelayConfig): number {
+     if (!delay) return 0;
+     if (typeof delay === "number") return delay;
+     return faker.number.int({ min: delay.min, max: delay.max });
+}
 
 /**
  * Pause for the given number of milliseconds.

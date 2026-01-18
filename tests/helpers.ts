@@ -17,12 +17,12 @@ export async function loadFixture(path: string): Promise<MockSpecInferSchema> {
  */
 export async function buildTestServerFromFixture(path: string): Promise<FastifyInstance> {
      const spec = await loadFixture(path);
-     return buildServer(spec, { specPath: path, loadedAt: "now" });
+     return buildServer(spec, { specPath: path, loadedAt: "now", logger: false });
 }
 
 /**
  * Build a Fastify instance from an in-memory spec object.
  */
 export function buildTestServer(spec: MockSpecInferSchema): FastifyInstance {
-     return buildServer(spec, { specPath: "inline", loadedAt: "now" });
+     return buildServer(spec, { specPath: "inline", loadedAt: "now", logger: false });
 }

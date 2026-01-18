@@ -1,10 +1,16 @@
-import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest, type FastifyBaseLogger } from "fastify";
 import type { MockSpecInferSchema } from "./spec.js";
 import { registerEndpoints } from "./registerEndpoints.js";
 import swaggerUiDist from "swagger-ui-dist";
 import { generateOpenApi } from "./openapi.js";
 import fastifyStatic from "@fastify/static";
+import fastifyCookie from "@fastify/cookie";
+import fastifyCors from "@fastify/cors";
 import YAML from "yaml";
+import { createLogger } from "./logger/customLogger.js";
+import type { LoggerOptions } from "./logger/types.js";
+import { HistoryRecorder } from "./history/historyRecorder.js";
+import type { HistoryFilter } from "./history/types.js";
 
 type SwaggerUiDistModule = {
      getAbsoluteFSPath?: () => string;
@@ -43,11 +49,61 @@ function resolveServerUrl(req: FastifyRequest, baseUrl?: string): string {
  */
 export function buildServer(
      spec: MockSpecInferSchema,
-     meta?: { specPath?: string; loadedAt?: string; baseUrl?: string }
+     meta?: { specPath?: string; loadedAt?: string; baseUrl?: string; logger?: FastifyBaseLogger | boolean }
 ): FastifyInstance {
      const app = Fastify({
-          logger: true,
-          trustProxy: true
+          logger: meta?.logger ?? true,
+          trustProxy: true,
+          disableRequestLogging: false
+     });
+
+     // Register CORS if configured
+     if (spec.settings.cors) {
+          app.register(fastifyCors, {
+               origin: spec.settings.cors.origin ?? true,
+               credentials: spec.settings.cors.credentials ?? false,
+               methods: spec.settings.cors.methods,
+               allowedHeaders: spec.settings.cors.allowedHeaders,
+               exposedHeaders: spec.settings.cors.exposedHeaders,
+               maxAge: spec.settings.cors.maxAge
+          });
+     }
+
+     // Register cookie parser plugin
+     app.register(fastifyCookie);
+
+     // Create history recorder
+     const history = new HistoryRecorder(1000);
+
+     // Record all requests in onRequest hook (after body parsing)
+     app.addHook("preHandler", async (req, reply) => {
+          const startTime = Date.now();
+
+          // Store start time for response hook
+          (req as FastifyRequest & { startTime?: number }).startTime = startTime;
+
+          history.record({
+               method: req.method,
+               url: req.url,
+               path: req.routeOptions?.url ?? req.url.split("?")[0],
+               query: req.query as Record<string, unknown>,
+               headers: req.headers,
+               body: req.body
+          });
+     });
+
+     // Update history with response details in onResponse hook
+     app.addHook("onResponse", async (req, reply) => {
+          const startTime = (req as FastifyRequest & { startTime?: number }).startTime ?? Date.now();
+          const responseTime = Date.now() - startTime;
+
+          // Find and update the last entry (just added in onRequest)
+          const entries = history.query({ limit: 1 });
+          if (entries.length > 0) {
+               const lastEntry = entries[entries.length - 1];
+               lastEntry.statusCode = reply.statusCode;
+               lastEntry.responseTime = responseTime;
+          }
      });
 
      /**
@@ -95,6 +151,23 @@ export function buildServer(
      });
 
      app.get("/docs", docsRouteHandler);
+
+     // History endpoints
+     app.get("/__history", async (req) => {
+          const query = req.query as Record<string, string>;
+          const filter: HistoryFilter = {
+               endpoint: query.endpoint,
+               method: query.method,
+               statusCode: query.statusCode ? Number(query.statusCode) : undefined,
+               limit: query.limit ? Number(query.limit) : undefined
+          };
+          return { entries: history.query(filter), total: history.count() };
+     });
+
+     app.delete("/__history", async () => {
+          history.clear();
+          return { ok: true, message: "History cleared" };
+     });
 
      registerEndpoints(app, spec);
 
