@@ -1,25 +1,33 @@
 import * as z from 'zod'
 
-/**
- * v1 Spec:
- * - endpoints: list of endpoint definitions
- * - Each endpoint has:
- *   - method: HTTP verb
- *   - path: route path (Fastify style, e.g. /users/:id)
- *   - response: static JSON response (for now)
- *   - status: HTTP status code (default 200)
- */
+const Primitive = z.union([z.string(), z.number(), z.boolean()]);
+
+export const MatchSchema = z.object({
+     query: z.record(z.string(), Primitive).optional(),
+     // Exact match for top-level body fields only (keeps v1 simple)
+     body: z.record(z.string(), Primitive).optional()
+});
+
+export const VariantSchema = z.object({
+     name: z.string().min(1).optional(),
+     match: MatchSchema.optional(),
+
+     status: z.number().int().min(100).max(599).optional(),
+     response: z.unknown(),
+
+     // Simulation overrides per variant (optional)
+     delayMs: z.number().int().min(0).optional(),
+     errorRate: z.number().min(0).max(1).optional(),
+     errorStatus: z.number().int().min(100).max(599).optional(),
+     errorResponse: z.unknown().optional()
+});
+
 export const EndpointSchema = z.object({
      method: z.enum(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']),
      path: z.string().min(1),
 
-     match: z
-          .object({
-               // Exact-match requirements for querystring keys.
-               // Example: { type: "premium" } means request must include ?type=premium
-               query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional()
-          })
-          .optional(),
+     match: MatchSchema.optional(),
+     variants: z.array(VariantSchema).min(1).optional(),
 
      // Response behavior:
      status: z.number().int().min(200).max(599).default(200),

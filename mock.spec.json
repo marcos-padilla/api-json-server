@@ -40,6 +40,26 @@
         "receivedName": "{{body.name}}",
         "rawBody": "{{body}}"
       }
+    },
+    {
+      "method": "POST",
+      "path": "/login",
+      "status": 200,
+      "response": { "ok": true, "message": "Default login response" },
+      "variants": [
+        {
+          "name": "invalid password",
+          "match": { "body": { "password": "wrong" } },
+          "status": 401,
+          "response": { "ok": false, "error": "Invalid credentials" }
+        },
+        {
+          "name": "admin login",
+          "match": { "body": { "email": "admin@example.com" } },
+          "status": 200,
+          "response": { "ok": true, "role": "admin", "token": "tok_{{body.email}}" }
+        }
+      ]
     }
   ]
 }
