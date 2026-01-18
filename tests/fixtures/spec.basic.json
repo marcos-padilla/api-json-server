@@ -1,0 +1,39 @@
+{
+     "version": 1,
+     "settings": {
+       "delayMs": 0,
+       "errorRate": 0,
+       "errorStatus": 500,
+       "errorResponse": { "error": "Mock error" }
+     },
+     "endpoints": [
+       {
+         "method": "GET",
+         "path": "/users/:id",
+         "status": 200,
+         "response": { "id": "{{params.id}}", "type": "{{query.type}}"}
+       },
+       {
+         "method": "GET",
+         "path": "/search",
+         "status": 200,
+         "match": { "query": { "type": "premium" } },
+         "response": { "ok": true, "tier": "premium" }
+       },
+       {
+         "method": "POST",
+         "path": "/login",
+         "status": 200,
+         "response": { "ok": true, "message": "default" },
+         "variants": [
+           {
+             "name": "wrong password",
+             "match": { "body": { "password": "wrong" } },
+             "status": 401,
+             "response": { "ok": false, "error": "Invalid credentials" }
+           }
+         ]
+       }
+     ]
+   }
+   
