@@ -1,11 +1,72 @@
 import * as z from 'zod'
 
-const Primitive = z.union([z.string(), z.number(), z.boolean()]);
+export type Primitive = string | number | boolean;
+
+const PrimitiveSchema = z.union([z.string(), z.number(), z.boolean()]);
+
+export interface TemplateArray extends Array<TemplateValue> {}
+
+export interface TemplateObject {
+     [key: string]: TemplateValue;
+}
+
+export type FakerTemplate = {
+     __faker: string | { method: string; args?: TemplateValue[] };
+};
+
+export type RepeatTemplate = {
+     __repeat: {
+          min?: number;
+          max?: number;
+          count?: number;
+          template: TemplateValue;
+     };
+};
+
+export type TemplateValue =
+     | Primitive
+     | null
+     | TemplateArray
+     | TemplateObject
+     | FakerTemplate
+     | RepeatTemplate;
+
+const TemplateValueSchema: z.ZodType<TemplateValue> = z.lazy(() =>
+     z.union([
+          PrimitiveSchema,
+          z.null(),
+          z.array(TemplateValueSchema),
+          z.object({ __faker: z.string().min(1) }).strict(),
+          z
+               .object({
+                    __faker: z
+                         .object({
+                              method: z.string().min(1),
+                              args: z.array(TemplateValueSchema).optional()
+                         })
+                         .strict()
+               })
+               .strict(),
+          z
+               .object({
+                    __repeat: z
+                         .object({
+                                       min: z.number().int().min(0).optional(),
+                              max: z.number().int().min(0).optional(),
+                              count: z.number().int().min(0).optional(),
+                              template: TemplateValueSchema
+                         })
+                         .strict()
+               })
+               .strict(),
+          z.record(z.string(), TemplateValueSchema)
+     ])
+);
 
 export const MatchSchema = z.object({
-     query: z.record(z.string(), Primitive).optional(),
+     query: z.record(z.string(), PrimitiveSchema).optional(),
      // Exact match for top-level body fields only (keeps v1 simple)
-     body: z.record(z.string(), Primitive).optional()
+     body: z.record(z.string(), PrimitiveSchema).optional()
 });
 
 export const VariantSchema = z.object({
@@ -13,13 +74,13 @@ export const VariantSchema = z.object({
      match: MatchSchema.optional(),
 
      status: z.number().int().min(100).max(599).optional(),
-     response: z.unknown(),
+     response: TemplateValueSchema,
 
      // Simulation overrides per variant (optional)
      delayMs: z.number().int().min(0).optional(),
      errorRate: z.number().min(0).max(1).optional(),
      errorStatus: z.number().int().min(100).max(599).optional(),
-     errorResponse: z.unknown().optional()
+     errorResponse: TemplateValueSchema.optional()
 });
 
 export const EndpointSchema = z.object({
@@ -31,13 +92,13 @@ export const EndpointSchema = z.object({
 
      // Response behavior:
      status: z.number().int().min(200).max(599).default(200),
-     response: z.unknown(),
+     response: TemplateValueSchema,
 
      // Simulation (optional overrides)
      delayMs: z.number().int().min(0).optional(),
      errorRate: z.number().min(0).max(1).optional(),
      errorStatus: z.number().int().min(100).max(599).optional(),
-     errorResponse: z.unknown().optional()
+     errorResponse: TemplateValueSchema.optional()
 })
 
 export const MockSpecSchema = z.object({
@@ -47,7 +108,8 @@ export const MockSpecSchema = z.object({
                delayMs: z.number().int().min(0).default(0),
                errorRate: z.number().min(0).max(1).default(0),
                errorStatus: z.number().int().min(100).max(599).default(500),
-               errorResponse: z.unknown().default({ error: "Mock error" })
+               errorResponse: TemplateValueSchema.default({ error: "Mock error" }),
+               fakerSeed: z.number().int().min(0).optional()
           })
           .default({ delayMs: 0, errorRate: 0, errorStatus: 500, errorResponse: { error: "Mock error" } }),
      endpoints: z.array(EndpointSchema).min(1)

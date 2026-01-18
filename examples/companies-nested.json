@@ -1,0 +1,47 @@
+{
+  "$schema": "../mockserve.spec.schema.json",
+  "version": 1,
+  "settings": {
+    "delayMs": 0,
+    "errorRate": 0,
+    "errorStatus": 500,
+    "errorResponse": { "error": "Mock error" },
+    "fakerSeed": 42
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/companies",
+      "response": {
+        "companies": {
+          "__repeat": {
+            "min": 3,
+            "max": 5,
+            "template": {
+              "id": { "__faker": "string.uuid" },
+              "name": { "__faker": "company.name" },
+              "domain": { "__faker": "internet.domainName" },
+              "address": {
+                "street": { "__faker": "location.streetAddress" },
+                "city": { "__faker": "location.city" },
+                "zip": { "__faker": "location.zipCode" },
+                "country": { "__faker": "location.country" }
+              },
+              "contacts": {
+                "__repeat": {
+                  "count": 2,
+                  "min": 0,
+                  "template": {
+                    "name": { "__faker": "person.fullName" },
+                    "email": { "__faker": "internet.email" },
+                    "phone": { "__faker": "phone.number" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

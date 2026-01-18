@@ -1,19 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { readFile } from "node:fs/promises";
-import { MockSpecSchema } from "../src/spec.js";
-import { buildServer } from "../src/server.js";
-
-async function loadFixture(path: string) {
-     const raw = await readFile(path, "utf-8");
-     const json = JSON.parse(raw);
-     const parsed = MockSpecSchema.parse(json);
-     return parsed;
-}
+import { buildTestServerFromFixture, loadFixture } from "./helpers.js";
 
 describe("mockserve - core behavior", () => {
      it("renders templates using path params + query", async () => {
-          const spec = await loadFixture("tests/fixtures/spec.basic.json");
-          const app = buildServer(spec, { specPath: "fixture", loadedAt: "now" });
+          const app = await buildTestServerFromFixture("tests/fixtures/spec.basic.json");
 
           const res = await app.inject({
                method: "GET",
@@ -27,8 +17,7 @@ describe("mockserve - core behavior", () => {
      });
 
      it("enforces endpoint-level match rules (query match -> 404 when mismatch)", async () => {
-          const spec = await loadFixture("tests/fixtures/spec.basic.json");
-          const app = buildServer(spec);
+          const app = await buildTestServerFromFixture("tests/fixtures/spec.basic.json");
 
           const ok = await app.inject({ method: "GET", url: "/search?type=premium" });
           expect(ok.statusCode).toBe(200);
@@ -40,8 +29,7 @@ describe("mockserve - core behavior", () => {
      });
 
      it("returns variant response when variant match is satisfied", async () => {
-          const spec = await loadFixture("tests/fixtures/spec.basic.json");
-          const app = buildServer(spec);
+          const app = await buildTestServerFromFixture("tests/fixtures/spec.basic.json");
 
           const res = await app.inject({
                method: "POST",
@@ -56,8 +44,7 @@ describe("mockserve - core behavior", () => {
      });
 
      it("falls back to base endpoint response when no variant matches", async () => {
-          const spec = await loadFixture("tests/fixtures/spec.basic.json");
-          const app = buildServer(spec);
+          const app = await buildTestServerFromFixture("tests/fixtures/spec.basic.json");
 
           const res = await app.inject({
                method: "POST",
@@ -72,15 +59,14 @@ describe("mockserve - core behavior", () => {
      });
 
      it("exposes /__spec for debugging", async () => {
-          const spec = await loadFixture("tests/fixtures/spec.basic.json");
-          const app = buildServer(spec, { specPath: "fixture", loadedAt: "now" });
+          const app = await buildTestServerFromFixture("tests/fixtures/spec.basic.json");
 
           const res = await app.inject({ method: "GET", url: "/__spec" });
 
           expect(res.statusCode).toBe(200);
           const body = res.json();
           expect(body.spec.version).toBe(1);
-          expect(body.meta.specPath).toBe("fixture");
+          expect(body.meta.specPath).toBe("tests/fixtures/spec.basic.json");
 
           await app.close();
      });

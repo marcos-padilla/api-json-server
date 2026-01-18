@@ -1,6 +1,9 @@
-import { readFile } from 'node:fs/promises'
-import { MockSpecSchema, type MockSpecInferSchema } from './spec.js'
+import { readFile } from "node:fs/promises";
+import { MockSpecSchema, type MockSpecInferSchema } from "./spec.js";
 
+/**
+ * Load and validate a mock spec from disk.
+ */
 export async function loadSpecFromFile(specPath: string): Promise<MockSpecInferSchema> {
      let raw: string
      try {

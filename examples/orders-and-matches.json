@@ -1,0 +1,49 @@
+{
+  "$schema": "../mockserve.spec.schema.json",
+  "version": 1,
+  "settings": {
+    "delayMs": 0,
+    "errorRate": 0,
+    "errorStatus": 500,
+    "errorResponse": { "error": "Mock error" }
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/orders",
+      "match": { "query": { "status": "pending" } },
+      "response": {
+        "status": "{{query.status}}",
+        "orders": {
+          "__repeat": {
+            "min": 5,
+            "max": 8,
+            "template": {
+              "id": { "__faker": "string.uuid" },
+              "total": { "__faker": { "method": "number.int", "args": [ { "min": 20, "max": 200 } ] } },
+              "placedAt": { "__faker": { "method": "date.recent", "args": [7] } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/orders",
+      "status": 201,
+      "response": {
+        "id": { "__faker": "string.uuid" },
+        "priority": "{{body.priority}}",
+        "message": "Order created"
+      },
+      "variants": [
+        {
+          "name": "high priority",
+          "match": { "body": { "priority": "high" } },
+          "status": 202,
+          "response": { "queued": true, "message": "Order queued for review" }
+        }
+      ]
+    }
+  ]
+}

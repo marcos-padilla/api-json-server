@@ -1,0 +1,35 @@
+{
+  "$schema": "../mockserve.spec.schema.json",
+  "version": 1,
+  "settings": {
+    "delayMs": 0,
+    "errorRate": 0,
+    "errorStatus": 500,
+    "errorResponse": { "error": "Mock error" },
+    "fakerSeed": 123
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/users",
+      "response": {
+        "users": {
+          "__repeat": {
+            "min": 10,
+            "max": 15,
+            "template": {
+              "id": { "__faker": "string.uuid" },
+              "firstName": { "__faker": "person.firstName" },
+              "lastName": { "__faker": "person.lastName" },
+              "avatarUrl": { "__faker": "image.avatar" },
+              "phone": { "__faker": "phone.number" },
+              "email": { "__faker": "internet.email" },
+              "company": { "__faker": "company.name" },
+              "joinedAt": { "__faker": { "method": "date.recent", "args": [30] } }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

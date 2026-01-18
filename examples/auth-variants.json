@@ -1,0 +1,31 @@
+{
+  "$schema": "../mockserve.spec.schema.json",
+  "version": 1,
+  "settings": {
+    "delayMs": 100,
+    "errorRate": 0,
+    "errorStatus": 500,
+    "errorResponse": { "error": "Mock error" }
+  },
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/login",
+      "response": { "ok": true, "token": "tok_{{body.email}}" },
+      "variants": [
+        {
+          "name": "invalid password",
+          "match": { "body": { "password": "wrong" } },
+          "status": 401,
+          "response": { "ok": false, "error": "Invalid credentials" }
+        },
+        {
+          "name": "admin login",
+          "match": { "body": { "email": "admin@example.com" } },
+          "status": 200,
+          "response": { "ok": true, "role": "admin", "token": "tok_admin" }
+        }
+      ]
+    }
+  ]
+}

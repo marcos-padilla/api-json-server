@@ -1,0 +1,46 @@
+{
+  "$schema": "../mockserve.spec.schema.json",
+  "version": 1,
+  "settings": {
+    "delayMs": 0,
+    "errorRate": 0,
+    "errorStatus": 500,
+    "errorResponse": { "error": "Mock error" }
+  },
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/users",
+      "response": {
+        "users": [
+          { "id": "u1", "name": "Ada Lovelace" },
+          { "id": "u2", "name": "Alan Turing" }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/users/:id",
+      "response": {
+        "id": "{{params.id}}",
+        "message": "User fetched"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/users",
+      "status": 201,
+      "response": {
+        "id": "u_{{body.email}}",
+        "name": "{{body.name}}",
+        "created": true
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/:id",
+      "status": 204,
+      "response": { "deleted": "{{params.id}}" }
+    }
+  ]
+}
