@@ -1,4 +1,5 @@
 {
+  "$schema": "./mockserve.spec.schema.json",
   "version": 1,
   "settings": {
     "delayMs": 0,
