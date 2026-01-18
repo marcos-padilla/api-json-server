@@ -4,6 +4,7 @@ import { registerEndpoints } from "./registerEndpoints.js";
 import swaggerUiDist from "swagger-ui-dist";
 import { generateOpenApi } from "./openapi.js";
 import fastifyStatic from "@fastify/static";
+import YAML from "yaml";
 
 function getSwaggerUiRoot(): string {
      // swagger-ui-dist can be CJS or ESM depending on environment.
@@ -17,9 +18,18 @@ function getSwaggerUiRoot(): string {
      throw new Error("swagger-ui-dist: cannot determine absolute FS path to dist assets");
 }
 
-export function buildServer(spec: MockSpecInferSchema, meta?: { specPath?: string; loadedAt?: string }): FastifyInstance {
+function resolveServerUrl(req: any, baseUrl?: string): string {
+     if (baseUrl && baseUrl.trim().length > 0) return baseUrl.trim();
+
+     const host = req.headers.host ?? "localhost";
+     const protocol = req.protocol ?? "http";
+     return `${protocol}://${host}`;
+}
+
+export function buildServer(spec: MockSpecInferSchema, meta?: { specPath?: string; loadedAt?: string, baseUrl?: string }): FastifyInstance {
      const app = Fastify({
-          logger: true
+          logger: true,
+          trustProxy: true
      });
 
      // Basic sanity route
@@ -42,6 +52,13 @@ export function buildServer(spec: MockSpecInferSchema, meta?: { specPath?: strin
           const host = req.headers.host ?? "localhost";
           const serverUrl = `${req.protocol}://${host}`;
           return generateOpenApi(spec, serverUrl);
+     });
+
+     app.get("/__openapi.yaml", async (req, reply) => {
+          const serverUrl = resolveServerUrl(req, meta?.baseUrl);
+          const doc = generateOpenApi(spec, serverUrl);
+          const yaml = YAML.stringify(doc);
+          reply.type("application/yaml; charset=utf-8").send(yaml);
      });
 
      app.register(fastifyStatic, {

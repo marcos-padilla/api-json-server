@@ -17,7 +17,8 @@ program
      .option("-s, --spec <path>", "Path to the spec JSON file", "mock.spec.json")
      .option("--watch", "Reload when spec file changes", true)
      .option("--no-watch", "Disable reload when spec file changes")
-     .action(async (opts: { port: string; spec: string, watch: boolean }) => {
+     .option("--base-url <url>", "Public base URL used in OpenAPI servers[] (e.g. https://example.com)")
+     .action(async (opts: { port: string; spec: string, watch: boolean, baseUrl: string }) => {
           const port = Number(opts.port);
 
           if (!Number.isFinite(port) || port <= 0) {
@@ -40,7 +41,7 @@ program
                const spec = await loadSpecFromFile(specPath);
                console.log(`Loaded spec v${spec.version} with ${spec.endpoints.length} endpoint(s).`);
 
-               const nextApp = buildServer(spec, { specPath, loadedAt });
+               const nextApp = buildServer(spec, { specPath, loadedAt, baseUrl: opts.baseUrl });
                try {
                     await nextApp.listen({ port, host: "0.0.0.0" });
                } catch (err) {
