@@ -32,7 +32,7 @@ program
           }
 
           const { buildServer } = await import('./server.js')
-          const app = buildServer()
+          const app = buildServer(spec)
 
           try {
                await app.listen({ port, host: '0.0.0.0' })
